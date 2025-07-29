@@ -305,6 +305,16 @@
         window.onload = function() {
             // Any other initializations can go here if needed
             // loadData() is already triggered by onAuthStateChanged
+
+            // Add event listener for the Enter key on the input field
+            const dataInput = document.getElementById('data-input');
+            dataInput.addEventListener('keypress', function(event) {
+                // Check if the pressed key is 'Enter' (key code 13)
+                if (event.key === 'Enter' || event.keyCode === 13) {
+                    event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
+                    uploadData(); // Call the uploadData function
+                }
+            });
         };
     </script>
 </body>
