@@ -55,6 +55,7 @@
             word-wrap: break-word;
             box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
             position: relative;
+            cursor: pointer; /* Indicate clickable */
         }
         .message-bubble.sent {
             background-color: #dcf8c6; /* Sent message green */
@@ -108,6 +109,7 @@
         }
         .chat-input-area button:disabled {
             background-color: #a0a0a0;
+            cursor: not-allowed;
         }
         .message-box {
             transition: opacity 0.3s ease-in-out;
@@ -176,6 +178,42 @@
             border-radius: 8px;
             font-weight: 600;
         }
+
+        /* Message Context Menu */
+        #message-context-menu {
+            position: absolute;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            min-width: 120px;
+            overflow: hidden;
+        }
+        #message-context-menu button {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            text-align: left;
+            background-color: transparent;
+            border: none;
+            color: #333;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-radius: 0; /* Override default button border-radius */
+            box-shadow: none; /* Override default button shadow */
+        }
+        #message-context-menu button:hover {
+            background-color: #f0f0f0;
+        }
+        #message-context-menu button:first-child {
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        #message-context-menu button:last-child {
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -237,6 +275,12 @@
         </div>
     </div>
 
+    <!-- Message Context Menu -->
+    <div id="message-context-menu" class="hidden">
+        <button onclick="editMessage()">Edit</button>
+        <button onclick="deleteMessage()">Delete</button>
+    </div>
+
     <!-- Message Box for notifications -->
     <div id="message-box" class="message-box fixed bottom-4 right-4 p-3 rounded-lg shadow-lg text-white opacity-0">
         <!-- Messages will appear here -->
@@ -247,7 +291,7 @@
         // Import necessary Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // --- YOUR EMBEDDED FIREBASE CONFIGURATION ---
@@ -276,6 +320,17 @@
         let documentInFocus = true;
         window.addEventListener('focus', () => { documentInFocus = true; });
         window.addEventListener('blur', () => { documentInFocus = false; });
+
+        // Variables for message editing/deletion
+        let editingMessageId = null;
+        let editingMessageContent = null;
+        let editingMessageType = null;
+        let editingFilePath = null;
+
+        // Variables for long press detection
+        let longPressTimer;
+        const LONG_PRESS_THRESHOLD = 500; // milliseconds
+        let touchStartX, touchStartY;
 
         // Initialize Firebase app
         try {
@@ -355,7 +410,8 @@
                 document.getElementById('name-input').disabled = true; // Initially disabled
                 document.getElementById('save-name-button').disabled = true; // Initially disabled
                 document.getElementById('passkey-input').value = ''; // Clear passkey input
-                document.getElementById('passkey-section').classList.add('hidden'); // Hide passkey section
+                // Ensure passkey section is hidden by default when modal opens
+                document.getElementById('passkey-section').classList.add('hidden'); 
                 updateUserInfoDisplay(); // Update user info in modal
             }
         };
@@ -411,7 +467,7 @@
                 changeNameButtonModal.disabled = false;
                 
                 // If a name is set, hide the name input section in the modal unless passkey is used
-                document.getElementById('passkey-section').classList.add('hidden'); // Ensure hidden by default in modal
+                // document.getElementById('passkey-section').classList.add('hidden'); // This is handled by toggleSettingsModal
                 
                 // If no name is set, show the settings modal automatically
                 if (userName === '') {
@@ -430,7 +486,7 @@
                 saveNameButtonModal.disabled = false;
                 passkeyInputModal.disabled = true;
                 changeNameButtonModal.disabled = true;
-                document.getElementById('passkey-section').classList.add('hidden'); // Hide passkey section
+                // document.getElementById('passkey-section').classList.add('hidden'); // This is handled by toggleSettingsModal
                 
                 settingsModal.classList.remove('hidden'); // Force open settings modal if no name
             }
@@ -510,7 +566,7 @@
          */
         function populateEmojiPicker() {
             const emojis = [
-                '😀', '😃', '😄', '😁', '�', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+                '�', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
                 '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
                 '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
                 '🤔', '🤫', '🤭', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
@@ -537,7 +593,7 @@
         }
 
         /**
-         * Uploads text data from the input field to Firestore.
+         * Uploads text data from the input field to Firestore or updates an existing message.
          */
         window.uploadData = async function() {
             if (!isAuthReady) {
@@ -554,18 +610,35 @@
             if (data) {
                 try {
                     const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
-                    await addDoc(collection(db, collectionPath), {
-                        type: 'text',
-                        content: data,
-                        timestamp: serverTimestamp(),
-                        userId: userId,
-                        userName: userName
-                    });
-                    dataInput.value = '';
-                    showMessage("Message sent!", "success");
+                    if (editingMessageId) {
+                        // Update existing message
+                        const messageRef = doc(db, collectionPath, editingMessageId);
+                        await updateDoc(messageRef, {
+                            content: data,
+                            timestamp: serverTimestamp() // Update timestamp on edit
+                        });
+                        showMessage("Message updated successfully!", "success");
+                        // Reset editing state
+                        editingMessageId = null;
+                        editingMessageContent = null;
+                        editingMessageType = null;
+                        editingFilePath = null;
+                        document.getElementById('upload-text-button').textContent = '➤'; // Change button back to send
+                    } else {
+                        // Add new message
+                        await addDoc(collection(db, collectionPath), {
+                            type: 'text',
+                            content: data,
+                            timestamp: serverTimestamp(),
+                            userId: userId,
+                            userName: userName
+                        });
+                        showMessage("Message sent!", "success");
+                    }
+                    dataInput.value = ''; // Clear the input field
                 } catch (e) {
-                    console.error("Error adding document: ", e);
-                    showMessage("Error sending message. Please try again.", "error");
+                    console.error("Error adding/updating document: ", e);
+                    showMessage("Error sending/updating message. Please try again.", "error");
                 }
             } else {
                 showMessage("Please enter some text to send.", "warning");
@@ -667,6 +740,13 @@
                     bubble.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
                     const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
 
+                    // Store data attributes for context menu
+                    bubble.dataset.docId = item.id;
+                    bubble.dataset.isOwnMessage = isSent;
+                    bubble.dataset.messageContent = item.content || ''; // For text messages
+                    bubble.dataset.messageType = item.type;
+                    bubble.dataset.filePath = item.filePath || ''; // For file messages
+
                     let contentHtml = '';
                     let senderName = item.userName || item.userId;
 
@@ -690,6 +770,14 @@
                         <div class="message-info">${date}</div>
                     `;
                     chatMessages.appendChild(bubble);
+
+                    // Attach event listeners for context menu
+                    if (isSent) { // Only allow edit/delete for own messages
+                        bubble.addEventListener('contextmenu', showContextMenu);
+                        bubble.addEventListener('touchstart', handleTouchStart, { passive: true });
+                        bubble.addEventListener('touchmove', handleTouchMove);
+                        bubble.addEventListener('touchend', handleTouchEnd);
+                    }
                 });
                 chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to bottom
             }, (error) => {
@@ -700,8 +788,155 @@
         }
 
         /**
+         * Shows the message context menu.
+         * @param {Event} event - The event object (mouse or touch).
+         */
+        function showContextMenu(event) {
+            event.preventDefault(); // Prevent default browser context menu
+
+            const menu = document.getElementById('message-context-menu');
+            const targetBubble = event.currentTarget; // The message bubble that was clicked/touched
+
+            const docId = targetBubble.dataset.docId;
+            const isOwnMessage = targetBubble.dataset.isOwnMessage === 'true'; // Convert string to boolean
+            const messageContent = targetBubble.dataset.messageContent;
+            const messageType = targetBubble.dataset.messageType;
+            const filePath = targetBubble.dataset.filePath;
+
+            // Only show menu for own messages
+            if (!isOwnMessage) {
+                hideContextMenu();
+                return;
+            }
+
+            // Store current message data for edit/delete actions
+            editingMessageId = docId;
+            editingMessageContent = messageContent;
+            editingMessageType = messageType;
+            editingFilePath = filePath;
+
+            // Position the menu
+            let x = event.clientX || event.touches[0].clientX;
+            let y = event.clientY || event.touches[0].clientY;
+
+            // Adjust position to stay within viewport
+            const menuWidth = menu.offsetWidth;
+            const menuHeight = menu.offsetHeight;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            if (x + menuWidth > viewportWidth) {
+                x = viewportWidth - menuWidth - 10; // 10px padding from right edge
+            }
+            if (y + menuHeight > viewportHeight) {
+                y = viewportHeight - menuHeight - 10; // 10px padding from bottom edge
+            }
+
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
+            menu.classList.remove('hidden');
+
+            // Hide menu when clicking anywhere else
+            document.addEventListener('click', hideContextMenuOutside, { once: true });
+            document.addEventListener('contextmenu', hideContextMenuOutside, { once: true }); // For subsequent right clicks
+        }
+
+        /**
+         * Hides the message context menu.
+         */
+        function hideContextMenu() {
+            document.getElementById('message-context-menu').classList.add('hidden');
+            // Reset editing state when menu is hidden
+            editingMessageId = null;
+            editingMessageContent = null;
+            editingMessageType = null;
+            editingFilePath = null;
+            document.getElementById('upload-text-button').textContent = '➤'; // Ensure button is 'Send'
+        }
+
+        /**
+         * Hides the context menu if the click is outside of it.
+         * @param {Event} event - The click event.
+         */
+        function hideContextMenuOutside(event) {
+            const menu = document.getElementById('message-context-menu');
+            if (!menu.contains(event.target)) {
+                hideContextMenu();
+            }
+        }
+
+        /**
+         * Handles touchstart event for long press detection.
+         * @param {Event} event - The touch event.
+         */
+        function handleTouchStart(event) {
+            if (event.touches.length === 1) {
+                touchStartX = event.touches[0].clientX;
+                touchStartY = event.touches[0].clientY;
+                longPressTimer = setTimeout(() => {
+                    showContextMenu(event);
+                }, LONG_PRESS_THRESHOLD);
+            }
+        }
+
+        /**
+         * Handles touchmove event for long press detection. Clears timer if finger moves.
+         * @param {Event} event - The touch event.
+         */
+        function handleTouchMove(event) {
+            if (longPressTimer) {
+                const currentX = event.touches[0].clientX;
+                const currentY = event.touches[0].clientY;
+                const deltaX = Math.abs(currentX - touchStartX);
+                const deltaY = Math.abs(currentY - touchStartY);
+                const movementThreshold = 10; // pixels
+
+                if (deltaX > movementThreshold || deltaY > movementThreshold) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }
+        }
+
+        /**
+         * Handles touchend event for long press detection. Clears timer.
+         * @param {Event} event - The touch event.
+         */
+        function handleTouchEnd() {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        }
+
+        /**
+         * Populates the input field with the message content for editing.
+         */
+        window.editMessage = function() {
+            if (editingMessageId && editingMessageType === 'text') {
+                document.getElementById('data-input').value = editingMessageContent;
+                document.getElementById('upload-text-button').textContent = 'Update Message';
+                document.getElementById('data-input').focus();
+            } else if (editingMessageType === 'file') {
+                showMessage("Files cannot be edited directly. You can delete and re-upload.", "warning");
+            }
+            hideContextMenu();
+        };
+
+        /**
+         * Deletes the selected message from Firestore and Storage.
+         */
+        window.deleteMessage = async function() {
+            if (editingMessageId) {
+                await deleteData(editingMessageId, editingFilePath);
+            }
+            hideContextMenu();
+        };
+
+        /**
          * Deletes a document from Firestore and optionally a file from Storage.
-         * Note: This function is not exposed in the UI for a chat interface, but kept for completeness.
+         * @param {string} docId - The ID of the document to delete from Firestore.
+         * @param {string} filePath - The storage path of the file to delete (if type is 'file').
          */
         window.deleteData = async function(docId, filePath = '') {
             if (!isAuthReady) {
@@ -734,17 +969,29 @@
                 }
             });
 
-            // Handle file input change
             document.getElementById('file-input').addEventListener('change', window.uploadFile);
 
-            // Initial check for name and toggle inputs
             checkNameAndToggleInputs();
 
-            // Open settings modal if no username is set on load
             if (!userName) {
                 toggleSettingsModal();
             }
         };
+
+        // Close context menu if clicked outside
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('message-context-menu');
+            if (!menu.classList.contains('hidden') && !menu.contains(event.target)) {
+                hideContextMenu();
+            }
+        });
+        // Prevent default context menu on body to ensure custom one works
+        document.body.addEventListener('contextmenu', (e) => {
+            const menu = document.getElementById('message-context-menu');
+            if (menu.classList.contains('hidden')) { // Only prevent if our menu isn't already active
+                e.preventDefault();
+            }
+        });
     </script>
 </body>
 </html>
