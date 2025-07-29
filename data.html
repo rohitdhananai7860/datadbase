@@ -3,64 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Data Uploader</title>
-    <!-- Tailwind CSS CDN for modern styling and responsiveness -->
+    <title>WhatsApp-like Real-time Chat</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+            background-color: #e0e0e0; /* Light gray background for the whole page */
             display: flex;
             justify-content: center;
-            align-items: flex-start; /* Align to top for better content flow */
+            align-items: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 10px;
             box-sizing: border-box;
         }
-        .container {
-            background-color: #ffffff;
+        .chat-container {
+            background-color: #ffffff; /* White background for the chat box */
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            padding: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 700px;
-            box-sizing: border-box;
+            max-width: 600px; /* Max width for a typical chat interface */
+            height: 90vh; /* Make it tall like a phone screen */
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            overflow: hidden;
         }
-        input[type="text"], input[type="file"], input[type="password"] {
-            border: 2px solid #e0e0e0;
+        .chat-header {
+            background-color: #075e54; /* WhatsApp header green */
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #ece5dd; /* WhatsApp chat background */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .message-bubble {
+            max-width: 80%;
+            padding: 8px 12px;
             border-radius: 10px;
-            padding: 12px 15px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
+            word-wrap: break-word;
+            box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+            position: relative;
         }
-        input[type="text"]:focus, input[type="file"]:focus, input[type="password"]:focus {
-            outline: none;
-            border-color: #4f46e5; /* Indigo-600 */
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        .message-bubble.sent {
+            background-color: #dcf8c6; /* Sent message green */
+            align-self: flex-end;
         }
-        button {
-            padding: 12px 25px;
-            border-radius: 10px;
+        .message-bubble.received {
+            background-color: #ffffff; /* Received message white */
+            align-self: flex-start;
+        }
+        .message-info {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .message-bubble.received .message-info {
+            text-align: left;
+        }
+        .message-sender {
             font-weight: 600;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            font-size: 0.8rem;
+            margin-bottom: 2px;
         }
-        button:hover {
-            transform: translateY(-1px);
+        .chat-input-area {
+            padding: 10px 15px;
+            background-color: #f0f2f5; /* Input area background */
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        button:active {
-            transform: translateY(0);
+        .chat-input-area input[type="text"] {
+            flex-grow: 1;
+            border-radius: 20px;
+            padding: 10px 15px;
+            border: none;
+            background-color: #ffffff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+        .chat-input-area button {
+            background-color: #128c7e; /* WhatsApp send button green */
+            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .chat-input-area button:disabled {
+            background-color: #a0a0a0;
         }
         .message-box {
             transition: opacity 0.3s ease-in-out;
@@ -76,6 +123,11 @@
             background-color: #f9f9f9;
             max-height: 150px;
             overflow-y: auto;
+            position: absolute; /* Position relative to chat-input-area */
+            bottom: 60px; /* Adjust based on input area height */
+            left: 15px;
+            right: 15px;
+            z-index: 10;
         }
         .emoji-picker span {
             cursor: pointer;
@@ -88,81 +140,100 @@
         .emoji-picker span:hover {
             background-color: #e6e6e6;
         }
-        /* Responsive adjustments */
-        @media (max-width: 640px) {
-            .container {
-                padding: 20px;
-            }
-            button {
-                width: 100%;
-            }
-            .flex-col-sm-full {
-                flex-direction: column;
-                width: 100%;
-            }
+
+        /* Settings Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .modal-content input {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 16px;
+        }
+        .modal-content button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4 sm:p-6 md:p-8">
-    <div class="container">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Real-time Data Sharing</h1>
-
-        <!-- User ID and Name Display -->
-        <div class="bg-indigo-100 text-indigo-800 p-3 rounded-lg text-sm font-medium text-center shadow-inner mb-4">
-            <p id="user-info-display">Authenticating...</p>
-        </div>
-
-        <!-- Settings Button -->
-        <div class="text-right mb-4">
-            <button onclick="toggleSettings()" class="bg-gray-500 text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 px-4 py-2 text-sm">
-                Settings
+<body class="bg-gray-100">
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1 class="text-xl font-semibold">Real-time Chat</h1>
+            <button onclick="toggleSettingsModal()" class="bg-transparent border-none text-white text-lg focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
             </button>
         </div>
 
-        <!-- Name Input Section (Initially visible if no name, or hidden behind settings) -->
-        <div id="name-input-section" class="flex flex-col gap-4 mb-6">
-            <input type="text" id="name-input" placeholder="Enter your name..." class="flex-grow">
+        <div id="chat-messages" class="chat-messages">
+            <!-- Messages will be loaded here -->
+            <div class="text-center text-gray-500 p-4">Loading messages...</div>
+        </div>
+
+        <div class="chat-input-area relative">
+            <button onclick="toggleEmojiPicker()" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50" id="emoji-button" disabled>
+                😊
+            </button>
+            <input type="text" id="data-input" placeholder="Type a message..." disabled>
+            <input type="file" id="file-input" class="hidden">
+            <label for="file-input" class="cursor-pointer bg-gray-400 text-white hover:bg-gray-500 rounded-full w-10 h-10 flex items-center justify-center shadow-md" id="file-upload-label" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13.5"/>
+                </svg>
+            </label>
+            <button onclick="uploadData()" class="bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50" id="upload-text-button" disabled>
+                ➤
+            </button>
+            <div id="emoji-picker" class="emoji-picker hidden"></div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 text-center">Settings</h2>
+            <div class="bg-indigo-100 text-indigo-800 p-3 rounded-lg text-sm font-medium text-center shadow-inner">
+                <p id="modal-user-info-display">Authenticating...</p>
+            </div>
+            
+            <input type="text" id="name-input" placeholder="Enter your name...">
             <button onclick="saveName()" id="save-name-button" class="bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50">
                 Save Name
             </button>
-        </div>
-
-        <!-- Pass Key Section for Name Change (Hidden by default) -->
-        <div id="passkey-section" class="flex flex-col gap-4 mb-6 hidden">
-            <input type="password" id="passkey-input" placeholder="Enter passkey to change name..." class="flex-grow">
+            
+            <input type="password" id="passkey-input" placeholder="Enter passkey to change name...">
             <button onclick="enableNameChange()" id="change-name-button" class="bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
                 Enable Name Change
             </button>
-        </div>
-
-        <!-- Data Input Section -->
-        <div class="flex flex-col gap-4 mb-6">
-            <input type="text" id="data-input" placeholder="Enter your text data here..." class="flex-grow" disabled>
             
-            <div class="flex flex-col sm:flex-row gap-4">
-                <button onclick="toggleEmojiPicker()" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex-grow" disabled id="emoji-button">
-                    Select Emoji
-                </button>
-                <input type="file" id="file-input" class="flex-grow p-2 rounded-lg border-2 border-gray-300" disabled>
-                <button onclick="uploadFile()" class="bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex-grow" disabled id="upload-file-button">
-                    Upload File
-                </button>
-            </div>
-            
-            <div id="emoji-picker" class="emoji-picker hidden"></div>
-
-            <button onclick="uploadData()" class="bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50" disabled id="upload-text-button">
-                Upload Text
+            <button onclick="toggleSettingsModal()" class="bg-red-500 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-4">
+                Close
             </button>
-        </div>
-
-        <!-- Data List Section -->
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Uploaded Data</h2>
-            <ul id="data-list" class="space-y-3">
-                <!-- Data items will be loaded here -->
-                <li class="text-center text-gray-500">Loading data...</li>
-            </ul>
         </div>
     </div>
 
@@ -174,15 +245,12 @@
     <!-- Firebase SDKs -->
     <script type="module">
         // Import necessary Firebase modules from CDN
-        // Ensured HTTPS for CDN URLs for better compatibility with hosted environments
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // Import Firebase Storage modules
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // --- YOUR EMBEDDED FIREBASE CONFIGURATION ---
-        // This is the configuration you obtained from your Firebase project settings.
         const firebaseConfig = {
             apiKey: "AIzaSyA5pJlaEPVrx-kFL_HT1tiXPHzXdxxr5uw",
             authDomain: "dstststs-81fe9.firebaseapp.com",
@@ -193,22 +261,18 @@
             measurementId: "G-YGCD5X3Z91"
         };
 
-        // This appId is derived from your Firebase projectId for consistent collection paths.
-        // It's crucial for matching your Firestore security rules.
         const appId = firebaseConfig.projectId;
 
         let app;
         let db;
         let auth;
-        let storage; // Firebase Storage instance
-        let userId; // Stores the current user's ID
-        let userName = localStorage.getItem('userName') || ''; // Load name from local storage
-        let isAuthReady = false; // Flag to ensure Firebase is initialized and authenticated
+        let storage;
+        let userId;
+        let userName = localStorage.getItem('userName') || '';
+        let isAuthReady = false;
 
-        // Hardcoded pass key for changing username
         const PASS_KEY = "7860"; 
 
-        // Track if the document is in focus
         let documentInFocus = true;
         window.addEventListener('focus', () => { documentInFocus = true; });
         window.addEventListener('blur', () => { documentInFocus = false; });
@@ -218,20 +282,16 @@
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-            storage = getStorage(app); // Initialize Firebase Storage
+            storage = getStorage(app);
         } catch (error) {
             console.error("Error initializing Firebase:", error);
             showMessage("Failed to initialize Firebase. Check console for details.", "error");
         }
 
-        // Authenticate user and set up auth state listener
-        // This ensures the user is signed in before interacting with Firestore
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // User is signed in
                 userId = user.uid;
             } else {
-                // No user is signed in, attempt anonymous sign-in
                 try {
                     await signInAnonymously(auth);
                     userId = auth.currentUser.uid;
@@ -240,18 +300,18 @@
                     showMessage("Error signing in. Data might not load.", "error");
                 }
             }
-            isAuthReady = true; // Set flag to true once authentication is ready
-            updateUserInfoDisplay(); // Update display with user ID and name
-            loadData(); // Load data only after authentication is complete
-            requestNotificationPermission(); // Request notification permission after auth
-            checkNameAndToggleInputs(); // Check name and enable/disable inputs
+            isAuthReady = true;
+            updateUserInfoDisplay(); // Update display in main UI and modal
+            loadData();
+            requestNotificationPermission();
+            checkNameAndToggleInputs();
         });
 
         /**
-         * Updates the user information display with User ID and Name.
+         * Updates the user information display in both main UI and settings modal.
          */
         function updateUserInfoDisplay() {
-            const userInfoDisplay = document.getElementById('user-info-display');
+            const userInfoDisplay = document.getElementById('modal-user-info-display');
             if (userName) {
                 userInfoDisplay.textContent = `User ID: ${userId} | Name: ${userName}`;
             } else {
@@ -272,30 +332,32 @@
                 showMessage("Name saved successfully!", "success");
                 updateUserInfoDisplay();
                 checkNameAndToggleInputs();
+                // Close modal if name is saved and it was opened for initial name entry
+                const settingsModal = document.getElementById('settings-modal');
+                if (!settingsModal.classList.contains('hidden')) {
+                    toggleSettingsModal(); // Close the modal after saving name
+                }
             } else {
                 showMessage("Please enter a valid name.", "warning");
             }
         };
 
         /**
-         * Toggles the visibility of the name change settings section.
+         * Toggles the visibility of the settings modal.
          */
-        window.toggleSettings = function() {
-            const passkeySection = document.getElementById('passkey-section');
-            const nameInputSection = document.getElementById('name-input-section');
-            
-            // Toggle visibility of the passkey section
-            passkeySection.classList.toggle('hidden');
+        window.toggleSettingsModal = function() {
+            const settingsModal = document.getElementById('settings-modal');
+            settingsModal.classList.toggle('hidden');
 
-            // If a name is already set, hide the name input section when settings are toggled off
-            if (userName && passkeySection.classList.contains('hidden')) {
-                nameInputSection.classList.add('hidden');
-            } else if (!userName || !passkeySection.classList.contains('hidden')) {
-                // If no name is set, or settings are open, show the name input section
-                nameInputSection.classList.remove('hidden');
+            // When opening the modal, ensure name input is pre-filled and passkey section is hidden
+            if (!settingsModal.classList.contains('hidden')) {
+                document.getElementById('name-input').value = userName;
+                document.getElementById('name-input').disabled = true; // Initially disabled
+                document.getElementById('save-name-button').disabled = true; // Initially disabled
+                document.getElementById('passkey-input').value = ''; // Clear passkey input
+                document.getElementById('passkey-section').classList.add('hidden'); // Hide passkey section
+                updateUserInfoDisplay(); // Update user info in modal
             }
-            // Reset passkey input when toggling settings
-            document.getElementById('passkey-input').value = '';
         };
 
         /**
@@ -325,44 +387,52 @@
             const dataInput = document.getElementById('data-input');
             const fileInput = document.getElementById('file-input');
             const uploadTextButton = document.getElementById('upload-text-button');
-            const uploadFileButton = document.getElementById('upload-file-button');
             const emojiButton = document.getElementById('emoji-button');
-            const nameInput = document.getElementById('name-input');
-            const saveNameButton = document.getElementById('save-name-button');
-            const passkeyInput = document.getElementById('passkey-input');
-            const changeNameButton = document.getElementById('change-name-button');
-            const nameInputSection = document.getElementById('name-input-section');
-            const passkeySection = document.getElementById('passkey-section');
-
+            const fileUploadLabel = document.getElementById('file-upload-label'); // Label for file input
+            
+            const nameInputModal = document.getElementById('name-input');
+            const saveNameButtonModal = document.getElementById('save-name-button');
+            const passkeyInputModal = document.getElementById('passkey-input');
+            const changeNameButtonModal = document.getElementById('change-name-button');
+            const settingsModal = document.getElementById('settings-modal');
 
             if (userName) {
                 dataInput.disabled = false;
                 fileInput.disabled = false;
                 uploadTextButton.disabled = false;
-                uploadFileButton.disabled = false;
                 emojiButton.disabled = false;
-                nameInput.disabled = true; // Disable name input once name is set
-                saveNameButton.disabled = true; // Disable save name button
-                nameInput.value = userName; // Pre-fill name input with saved name
-                passkeyInput.disabled = false; // Enable passkey input
-                changeNameButton.disabled = false; // Enable change name button
+                fileUploadLabel.style.pointerEvents = 'auto'; // Enable file upload label click
+
+                // In modal:
+                nameInputModal.disabled = true;
+                saveNameButtonModal.disabled = true;
+                nameInputModal.value = userName;
+                passkeyInputModal.disabled = false;
+                changeNameButtonModal.disabled = false;
                 
-                // Hide the name input section if a name is set and passkey section is hidden
-                if (passkeySection.classList.contains('hidden')) {
-                    nameInputSection.classList.add('hidden');
+                // If a name is set, hide the name input section in the modal unless passkey is used
+                document.getElementById('passkey-section').classList.add('hidden'); // Ensure hidden by default in modal
+                
+                // If no name is set, show the settings modal automatically
+                if (userName === '') {
+                    settingsModal.classList.remove('hidden');
                 }
+
             } else {
                 dataInput.disabled = true;
                 fileInput.disabled = true;
                 uploadTextButton.disabled = true;
-                uploadFileButton.disabled = true;
                 emojiButton.disabled = true;
-                nameInput.disabled = false;
-                saveNameButton.disabled = false;
-                passkeyInput.disabled = true; // Disable passkey input until a name is set
-                changeNameButton.disabled = true; // Disable change name button
-                nameInputSection.classList.remove('hidden'); // Always show name input if no name is set
-                passkeySection.classList.add('hidden'); // Always hide passkey section if no name is set
+                fileUploadLabel.style.pointerEvents = 'none'; // Disable file upload label click
+
+                // In modal:
+                nameInputModal.disabled = false;
+                saveNameButtonModal.disabled = false;
+                passkeyInputModal.disabled = true;
+                changeNameButtonModal.disabled = true;
+                document.getElementById('passkey-section').classList.add('hidden'); // Hide passkey section
+                
+                settingsModal.classList.remove('hidden'); // Force open settings modal if no name
             }
         }
 
@@ -374,8 +444,7 @@
         function showMessage(message, type = "info") {
             const messageBox = document.getElementById('message-box');
             messageBox.textContent = message;
-            // Set class based on message type for styling
-            let bgColor = 'bg-blue-500'; // Default info
+            let bgColor = 'bg-blue-500';
             if (type === 'success') {
                 bgColor = 'bg-green-500';
             } else if (type === 'error') {
@@ -385,7 +454,6 @@
             }
             messageBox.className = `message-box fixed bottom-4 right-4 p-3 rounded-lg shadow-lg text-white ${bgColor} transition-opacity duration-300 opacity-100`;
 
-            // Hide message after 3 seconds
             setTimeout(() => {
                 messageBox.classList.remove('opacity-100');
                 messageBox.classList.add('opacity-0');
@@ -396,17 +464,13 @@
          * Requests permission for system notifications.
          */
         function requestNotificationPermission() {
-            // Check if Notification API is supported by the browser
             if (!("Notification" in window)) {
                 console.warn("This browser does not support desktop notification");
                 return;
             }
-
-            // Check if permission is already granted or denied
             if (Notification.permission === "granted") {
                 console.log("Notification permission already granted.");
             } else if (Notification.permission !== "denied") {
-                // Request permission
                 Notification.requestPermission().then(permission => {
                     if (permission === "granted") {
                         console.log("Notification permission granted.");
@@ -426,7 +490,7 @@
          */
         function showSystemNotification(title, body) {
             if (Notification.permission === "granted" && !documentInFocus) {
-                new Notification(title, { body: body, icon: 'https://th.bing.com/th/id/OIP.3nvQ4Ja70GslDkql65kNjQHaHl?w=204&h=208&c=7&r=0&o=7&pid=1.7&rm=3' });
+                new Notification(title, { body: body, icon: 'https://placehold.co/48x48/075e54/ffffff?text=Chat' });
             }
         }
 
@@ -446,9 +510,9 @@
          */
         function populateEmojiPicker() {
             const emojis = [
-                '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+                '😀', '😃', '😄', '😁', '�', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
                 '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
-                '😖', '😫', '😩', '🥺', '�', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+                '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
                 '🤔', '🤫', '🤭', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
                 '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '👽', '👾', '🤖'
             ];
@@ -468,13 +532,12 @@
         function insertEmoji(emoji) {
             const dataInput = document.getElementById('data-input');
             dataInput.value += emoji;
-            dataInput.focus(); // Keep focus on the input after inserting emoji
-            document.getElementById('emoji-picker').classList.add('hidden'); // Hide picker after selection
+            dataInput.focus();
+            document.getElementById('emoji-picker').classList.add('hidden');
         }
 
         /**
          * Uploads text data from the input field to Firestore.
-         * This function is called when the "Upload Text" button is clicked or Enter is pressed.
          */
         window.uploadData = async function() {
             if (!isAuthReady) {
@@ -482,7 +545,7 @@
                 return;
             }
             if (!userName) {
-                showMessage("Please enter your name before uploading data.", "warning");
+                showMessage("Please enter your name before sending messages.", "warning");
                 return;
             }
             const dataInput = document.getElementById('data-input');
@@ -490,23 +553,22 @@
 
             if (data) {
                 try {
-                    // Define the collection path for public data, using the projectId as appId
                     const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
                     await addDoc(collection(db, collectionPath), {
-                        type: 'text', // Indicate type of data
+                        type: 'text',
                         content: data,
-                        timestamp: serverTimestamp(), // Use server timestamp for consistent ordering
-                        userId: userId, // Store the ID of the user who uploaded the data
-                        userName: userName // Store the user's chosen name
+                        timestamp: serverTimestamp(),
+                        userId: userId,
+                        userName: userName
                     });
-                    dataInput.value = ''; // Clear the input field
-                    showMessage("Text uploaded successfully!", "success");
+                    dataInput.value = '';
+                    showMessage("Message sent!", "success");
                 } catch (e) {
                     console.error("Error adding document: ", e);
-                    showMessage("Error uploading text data. Please try again.", "error");
+                    showMessage("Error sending message. Please try again.", "error");
                 }
             } else {
-                showMessage("Please enter some text data to upload.", "warning");
+                showMessage("Please enter some text to send.", "warning");
             }
         };
 
@@ -528,29 +590,26 @@
             if (file) {
                 showMessage("Uploading file...", "info");
                 try {
-                    // Create a unique path for the file in Firebase Storage
                     const filePath = `uploads/${userId}/${Date.now()}_${file.name}`;
                     const storageRef = ref(storage, filePath);
 
-                    // Upload the file
                     const uploadResult = await uploadBytes(storageRef, file);
                     const fileUrl = await getDownloadURL(uploadResult.ref);
 
-                    // Save file metadata to Firestore
                     const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
                     await addDoc(collection(db, collectionPath), {
-                        type: 'file', // Indicate type of data
+                        type: 'file',
                         fileName: file.name,
                         fileType: file.type,
                         fileSize: file.size,
                         fileUrl: fileUrl,
-                        filePath: filePath, // Store path for deletion
+                        filePath: filePath,
                         timestamp: serverTimestamp(),
                         userId: userId,
-                        userName: userName // Store the user's chosen name
+                        userName: userName
                     });
 
-                    fileInput.value = ''; // Clear the file input
+                    fileInput.value = '';
                     showMessage(`File "${file.name}" uploaded successfully!`, "success");
                 } catch (e) {
                     console.error("Error uploading file:", e);
@@ -563,115 +622,86 @@
 
         /**
          * Loads data from Firestore in real-time using onSnapshot.
-         * This function is called after authentication is ready.
          */
         function loadData() {
-            if (!isAuthReady) return; // Ensure auth is ready before attempting to load data
+            if (!isAuthReady) return;
 
-            const dataList = document.getElementById('data-list');
-            dataList.innerHTML = '<li class="text-center text-gray-500">Loading data...</li>'; // Show loading state
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.innerHTML = '<div class="text-center text-gray-500 p-4">Loading messages...</div>';
 
-            // Define the collection path for public data, using the projectId as appId
             const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
-            // Create a query to the collection.
-            // Note: orderBy is avoided to prevent potential index issues, sorting will be done in-memory.
             const q = query(collection(db, collectionPath));
 
-            // Set up a real-time listener with onSnapshot
             onSnapshot(q, (snapshot) => {
-                // Check for changes (new documents added)
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
-                        // If a new document is added and the tab is not in focus, show a notification
-                        if (!documentInFocus && change.doc.data().userId !== userId) { // Don't notify for own uploads
+                        if (!documentInFocus && change.doc.data().userId !== userId) {
                             const itemData = change.doc.data();
-                            const uploaderName = itemData.userName || itemData.userId; // Use name if available, else ID
+                            const uploaderName = itemData.userName || itemData.userId;
                             if (itemData.type === 'text') {
-                                showSystemNotification("New Text Uploaded!", `"${itemData.content}" by ${uploaderName}`);
+                                showSystemNotification("New Message!", `"${itemData.content}" from ${uploaderName}`);
                             } else if (itemData.type === 'file') {
-                                showSystemNotification("New File Uploaded!", `"${itemData.fileName}" by ${uploaderName}`);
+                                showSystemNotification("New File!", `"${itemData.fileName}" from ${uploaderName}`);
                             }
                         }
                     }
                 });
 
-                dataList.innerHTML = ''; // Clear existing list items
+                chatMessages.innerHTML = '';
                 if (snapshot.empty) {
-                    dataList.innerHTML = '<li class="text-center text-gray-500 p-4">No data uploaded yet. Be the first!</li>';
+                    chatMessages.innerHTML = '<div class="text-center text-gray-500 p-4">No messages yet. Start the conversation!</div>';
                     return;
                 }
 
                 const items = [];
                 snapshot.forEach((doc) => {
-                    // Get document data and its ID
                     const item = doc.data();
                     items.push({ id: doc.id, ...item });
                 });
 
-                // Sort items by timestamp in descending order (newest first)
-                items.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+                items.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0)); // Sort ascending for chat
 
-                // Populate the list with fetched and sorted data
                 items.forEach(item => {
-                    const li = document.createElement('li');
-                    li.className = 'bg-white p-4 rounded-lg shadow-sm mb-2 flex flex-col sm:flex-row justify-between items-start sm:items-center';
+                    const bubble = document.createElement('div');
+                    const isSent = item.userId === userId;
+                    bubble.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
                     const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
-                    const displayUploader = item.userName || item.userId; // Prefer userName, fallback to userId
 
                     let contentHtml = '';
+                    let senderName = item.userName || item.userId;
+
                     if (item.type === 'text') {
-                        contentHtml = `<p class="text-lg font-medium text-gray-800 break-words">${item.content}</p>`;
+                        contentHtml = `<p class="text-sm">${item.content}</p>`;
                     } else if (item.type === 'file') {
-                        // Display a link for files, with appropriate icon based on type
                         let fileIcon = '';
                         if (item.fileType.startsWith('image/')) {
-                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-2-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>`;
-                        } else if (item.fileType.startsWith('video/')) {
-                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.872-2.436A1 1 0 0122 8.944v6.112a1 1 0 01-2.128.58L15 14m-5 4v-4a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>`;
-                        } else if (item.fileType.startsWith('audio/')) {
-                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19a2 2 0 001.67-2.98l-1.67-1.67m1.67 1.67H19a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h4zm0 0a2 2 0 00-2 2v2M9 19a2 2 0 01-2 2h2" />
-                            </svg>`;
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-2-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`;
                         } else if (item.fileType.includes('pdf')) {
-                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>`;
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
                         } else {
-                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>`;
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`;
                         }
-                        contentHtml = `<a href="${item.fileUrl}" target="_blank" rel="noopener noreferrer" class="text-lg font-medium text-indigo-600 hover:underline flex items-center">${fileIcon} ${item.fileName}</a>`;
+                        contentHtml = `<a href="${item.fileUrl}" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-700 hover:underline flex items-center">${fileIcon} ${item.fileName}</a>`;
                     }
 
-                    li.innerHTML = `
-                        <div class="flex-grow mb-2 sm:mb-0">
-                            ${contentHtml}
-                            <p class="text-sm text-gray-500 mt-1">Uploaded by: <span class="font-semibold">${displayUploader}</span> at ${date}</p>
-                        </div>
-                        <button onclick="deleteData('${item.id}', '${item.type === 'file' ? item.filePath : ''}')" class="ml-0 sm:ml-4 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 self-end sm:self-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
+                    bubble.innerHTML = `
+                        ${!isSent ? `<div class="message-sender text-blue-800">${senderName}</div>` : ''}
+                        ${contentHtml}
+                        <div class="message-info">${date}</div>
                     `;
-                    dataList.appendChild(li);
+                    chatMessages.appendChild(bubble);
                 });
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to bottom
             }, (error) => {
                 console.error("Error fetching data: ", error);
-                showMessage("Error loading data. Please try again.", "error");
-                dataList.innerHTML = '<li class="text-center text-red-500 p-4">Failed to load data.</li>';
+                showMessage("Error loading messages. Please try again.", "error");
+                chatMessages.innerHTML = '<div class="text-center text-red-500 p-4">Failed to load messages.</div>';
             });
         }
 
         /**
          * Deletes a document from Firestore and optionally a file from Storage.
-         * @param {string} docId - The ID of the document to delete from Firestore.
-         * @param {string} filePath - The storage path of the file to delete (if type is 'file').
+         * Note: This function is not exposed in the UI for a chat interface, but kept for completeness.
          */
         window.deleteData = async function(docId, filePath = '') {
             if (!isAuthReady) {
@@ -679,11 +709,9 @@
                 return;
             }
             try {
-                // Delete from Firestore
                 const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
                 await deleteDoc(doc(db, collectionPath, docId));
 
-                // If it's a file, delete from Firebase Storage as well
                 if (filePath) {
                     const fileRef = ref(storage, filePath);
                     await deleteObject(fileRef);
@@ -697,24 +725,26 @@
             }
         };
 
-        // Ensure loadData is called once the window is fully loaded and auth is ready
         window.onload = function() {
-            // Add event listener for the Enter key on the text input field
             const dataInput = document.getElementById('data-input');
             dataInput.addEventListener('keypress', function(event) {
-                // Check if the pressed key is 'Enter' (key code 13)
                 if (event.key === 'Enter' || event.keyCode === 13) {
-                    event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
-                    uploadData(); // Call the uploadData function
+                    event.preventDefault();
+                    uploadData();
                 }
             });
 
-            // Set initial name input value from local storage
-            document.getElementById('name-input').value = userName;
-            updateUserInfoDisplay(); // Update display on load
-            checkNameAndToggleInputs(); // Set initial state of inputs/buttons
+            // Handle file input change
+            document.getElementById('file-input').addEventListener('change', window.uploadFile);
+
+            // Initial check for name and toggle inputs
+            checkNameAndToggleInputs();
+
+            // Open settings modal if no username is set on load
+            if (!userName) {
+                toggleSettingsModal();
+            }
         };
     </script>
 </body>
 </html>
-�
