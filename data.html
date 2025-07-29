@@ -30,14 +30,14 @@
             flex-direction: column;
             gap: 20px;
         }
-        input[type="text"] {
+        input[type="text"], input[type="file"] {
             border: 2px solid #e0e0e0;
             border-radius: 10px;
             padding: 12px 15px;
             font-size: 16px;
             transition: border-color 0.3s ease;
         }
-        input[type="text"]:focus {
+        input[type="text"]:focus, input[type="file"]:focus {
             outline: none;
             border-color: #4f46e5; /* Indigo-600 */
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
@@ -60,12 +60,38 @@
             transition: opacity 0.3s ease-in-out;
             z-index: 1000;
         }
+        .emoji-picker {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+            gap: 5px;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .emoji-picker span {
+            cursor: pointer;
+            font-size: 20px;
+            text-align: center;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background-color 0.2s ease;
+        }
+        .emoji-picker span:hover {
+            background-color: #e6e6e6;
+        }
         /* Responsive adjustments */
         @media (max-width: 640px) {
             .container {
                 padding: 20px;
             }
             button {
+                width: 100%;
+            }
+            .flex-col-sm-full {
+                flex-direction: column;
                 width: 100%;
             }
         }
@@ -81,10 +107,23 @@
         </div>
 
         <!-- Data Input Section -->
-        <div class="flex flex-col sm:flex-row gap-4 mb-6">
-            <input type="text" id="data-input" placeholder="Enter your data here..." class="flex-grow">
+        <div class="flex flex-col gap-4 mb-6">
+            <input type="text" id="data-input" placeholder="Enter your text data here..." class="flex-grow">
+            
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button onclick="toggleEmojiPicker()" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex-grow">
+                    Select Emoji
+                </button>
+                <input type="file" id="file-input" class="flex-grow p-2 rounded-lg border-2 border-gray-300">
+                <button onclick="uploadFile()" class="bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex-grow">
+                    Upload File
+                </button>
+            </div>
+            
+            <div id="emoji-picker" class="emoji-picker hidden"></div>
+
             <button onclick="uploadData()" class="bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
-                Upload Data
+                Upload Text
             </button>
         </div>
 
@@ -110,6 +149,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import Firebase Storage modules
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // --- YOUR EMBEDDED FIREBASE CONFIGURATION ---
         // This is the configuration you obtained from your Firebase project settings.
@@ -130,6 +171,7 @@
         let app;
         let db;
         let auth;
+        let storage; // Firebase Storage instance
         let userId; // Stores the current user's ID
         let isAuthReady = false; // Flag to ensure Firebase is initialized and authenticated
 
@@ -143,6 +185,7 @@
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            storage = getStorage(app); // Initialize Firebase Storage
         } catch (error) {
             console.error("Error initializing Firebase:", error);
             showMessage("Failed to initialize Firebase. Check console for details.", "error");
@@ -235,8 +278,50 @@
         }
 
         /**
-         * Uploads data from the input field to Firestore.
-         * This function is called when the "Upload Data" button is clicked or Enter is pressed.
+         * Toggles the visibility of the emoji picker.
+         */
+        window.toggleEmojiPicker = function() {
+            const emojiPicker = document.getElementById('emoji-picker');
+            emojiPicker.classList.toggle('hidden');
+            if (!emojiPicker.classList.contains('hidden') && emojiPicker.innerHTML === '') {
+                populateEmojiPicker();
+            }
+        };
+
+        /**
+         * Populates the emoji picker with common emojis.
+         */
+        function populateEmojiPicker() {
+            const emojis = [
+                '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+                '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '�', '😕', '🙁', '☹️', '😣',
+                '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+                '🤔', '🤫', '🤭', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+                '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '👽', '👾', '🤖'
+            ];
+            const emojiPicker = document.getElementById('emoji-picker');
+            emojis.forEach(emoji => {
+                const span = document.createElement('span');
+                span.textContent = emoji;
+                span.onclick = () => insertEmoji(emoji);
+                emojiPicker.appendChild(span);
+            });
+        }
+
+        /**
+         * Inserts an emoji into the data input field.
+         * @param {string} emoji - The emoji character to insert.
+         */
+        function insertEmoji(emoji) {
+            const dataInput = document.getElementById('data-input');
+            dataInput.value += emoji;
+            dataInput.focus(); // Keep focus on the input after inserting emoji
+            document.getElementById('emoji-picker').classList.add('hidden'); // Hide picker after selection
+        }
+
+        /**
+         * Uploads text data from the input field to Firestore.
+         * This function is called when the "Upload Text" button is clicked or Enter is pressed.
          */
         window.uploadData = async function() {
             if (!isAuthReady) {
@@ -251,18 +336,65 @@
                     // Define the collection path for public data, using the projectId as appId
                     const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
                     await addDoc(collection(db, collectionPath), {
+                        type: 'text', // Indicate type of data
                         content: data,
                         timestamp: serverTimestamp(), // Use server timestamp for consistent ordering
                         userId: userId // Store the ID of the user who uploaded the data
                     });
                     dataInput.value = ''; // Clear the input field
-                    showMessage("Data uploaded successfully!", "success");
+                    showMessage("Text uploaded successfully!", "success");
                 } catch (e) {
                     console.error("Error adding document: ", e);
-                    showMessage("Error uploading data. Please try again.", "error");
+                    showMessage("Error uploading text data. Please try again.", "error");
                 }
             } else {
-                showMessage("Please enter some data to upload.", "warning");
+                showMessage("Please enter some text data to upload.", "warning");
+            }
+        };
+
+        /**
+         * Uploads a selected file to Firebase Storage and its metadata to Firestore.
+         */
+        window.uploadFile = async function() {
+            if (!isAuthReady) {
+                showMessage("Authentication not ready. Please wait.", "error");
+                return;
+            }
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+
+            if (file) {
+                showMessage("Uploading file...", "info");
+                try {
+                    // Create a unique path for the file in Firebase Storage
+                    const filePath = `uploads/${userId}/${Date.now()}_${file.name}`;
+                    const storageRef = ref(storage, filePath);
+
+                    // Upload the file
+                    const uploadResult = await uploadBytes(storageRef, file);
+                    const fileUrl = await getDownloadURL(uploadResult.ref);
+
+                    // Save file metadata to Firestore
+                    const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
+                    await addDoc(collection(db, collectionPath), {
+                        type: 'file', // Indicate type of data
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileSize: file.size,
+                        fileUrl: fileUrl,
+                        filePath: filePath, // Store path for deletion
+                        timestamp: serverTimestamp(),
+                        userId: userId
+                    });
+
+                    fileInput.value = ''; // Clear the file input
+                    showMessage(`File "${file.name}" uploaded successfully!`, "success");
+                } catch (e) {
+                    console.error("Error uploading file:", e);
+                    showMessage(`Error uploading file: ${e.message}`, "error");
+                }
+            } else {
+                showMessage("Please select a file to upload.", "warning");
             }
         };
 
@@ -289,7 +421,12 @@
                     if (change.type === "added") {
                         // If a new document is added and the tab is not in focus, show a notification
                         if (!documentInFocus && change.doc.data().userId !== userId) { // Don't notify for own uploads
-                            showSystemNotification("New Data Uploaded!", `"${change.doc.data().content}" by ${change.doc.data().userId}`);
+                            const itemData = change.doc.data();
+                            if (itemData.type === 'text') {
+                                showSystemNotification("New Text Uploaded!", `"${itemData.content}" by ${itemData.userId}`);
+                            } else if (itemData.type === 'file') {
+                                showSystemNotification("New File Uploaded!", `"${itemData.fileName}" by ${itemData.userId}`);
+                            }
                         }
                     }
                 });
@@ -316,12 +453,42 @@
                     li.className = 'bg-white p-4 rounded-lg shadow-sm mb-2 flex flex-col sm:flex-row justify-between items-start sm:items-center';
                     const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
 
+                    let contentHtml = '';
+                    if (item.type === 'text') {
+                        contentHtml = `<p class="text-lg font-medium text-gray-800 break-words">${item.content}</p>`;
+                    } else if (item.type === 'file') {
+                        // Display a link for files, with appropriate icon based on type
+                        let fileIcon = '';
+                        if (item.fileType.startsWith('image/')) {
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-2-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>`;
+                        } else if (item.fileType.startsWith('video/')) {
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.872-2.436A1 1 0 0122 8.944v6.112a1 1 0 01-2.128.58L15 14m-5 4v-4a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>`;
+                        } else if (item.fileType.startsWith('audio/')) {
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19a2 2 0 001.67-2.98l-1.67-1.67m1.67 1.67H19a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h4zm0 0a2 2 0 00-2 2v2M9 19a2 2 0 01-2 2h2" />
+                            </svg>`;
+                        } else if (item.fileType.includes('pdf')) {
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>`;
+                        } else {
+                            fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>`;
+                        }
+                        contentHtml = `<a href="${item.fileUrl}" target="_blank" rel="noopener noreferrer" class="text-lg font-medium text-indigo-600 hover:underline flex items-center">${fileIcon} ${item.fileName}</a>`;
+                    }
+
                     li.innerHTML = `
                         <div class="flex-grow mb-2 sm:mb-0">
-                            <p class="text-lg font-medium text-gray-800 break-words">${item.content}</p>
+                            ${contentHtml}
                             <p class="text-sm text-gray-500 mt-1">Uploaded by: <span class="font-mono text-xs">${item.userId}</span> at ${date}</p>
                         </div>
-                        <button onclick="deleteData('${item.id}')" class="ml-0 sm:ml-4 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 self-end sm:self-center">
+                        <button onclick="deleteData('${item.id}', '${item.type === 'file' ? item.filePath : ''}')" class="ml-0 sm:ml-4 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 self-end sm:self-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
                             </svg>
@@ -337,36 +504,47 @@
         }
 
         /**
-         * Deletes a document from Firestore.
-         * @param {string} docId - The ID of the document to delete.
+         * Deletes a document from Firestore and optionally a file from Storage.
+         * @param {string} docId - The ID of the document to delete from Firestore.
+         * @param {string} filePath - The storage path of the file to delete (if type is 'file').
          */
-        window.deleteData = async function(docId) {
+        window.deleteData = async function(docId, filePath = '') {
             if (!isAuthReady) {
                 showMessage("Authentication not ready. Please wait.", "error");
                 return;
             }
             try {
+                // Delete from Firestore
                 const collectionPath = `artifacts/${appId}/public/data/uploaded_items`;
                 await deleteDoc(doc(db, collectionPath, docId));
-                showMessage("Data deleted successfully!", "success");
-            } catch (e) {
-                    console.error("Error deleting document: ", e);
-                    showMessage("Error deleting data. Please try again.", "error");
-                }
-            };
 
-            // Ensure loadData is called once the window is fully loaded and auth is ready
-            window.onload = function() {
-                // Add event listener for the Enter key on the input field
-                const dataInput = document.getElementById('data-input');
-                dataInput.addEventListener('keypress', function(event) {
-                    // Check if the pressed key is 'Enter' (key code 13)
-                    if (event.key === 'Enter' || event.keyCode === 13) {
-                        event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
-                        uploadData(); // Call the uploadData function
-                    }
-                });
-            };
+                // If it's a file, delete from Firebase Storage as well
+                if (filePath) {
+                    const fileRef = ref(storage, filePath);
+                    await deleteObject(fileRef);
+                    showMessage("Data and file deleted successfully!", "success");
+                } else {
+                    showMessage("Data deleted successfully!", "success");
+                }
+            } catch (e) {
+                console.error("Error deleting document/file: ", e);
+                showMessage("Error deleting data. Please try again.", "error");
+            }
+        };
+
+        // Ensure loadData is called once the window is fully loaded and auth is ready
+        window.onload = function() {
+            // Add event listener for the Enter key on the text input field
+            const dataInput = document.getElementById('data-input');
+            dataInput.addEventListener('keypress', function(event) {
+                // Check if the pressed key is 'Enter' (key code 13)
+                if (event.key === 'Enter' || event.keyCode === 13) {
+                    event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
+                    uploadData(); // Call the uploadData function
+                }
+            });
+        };
     </script>
 </body>
 </html>
+�
