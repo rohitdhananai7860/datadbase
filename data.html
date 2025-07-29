@@ -133,6 +133,11 @@
         let userId; // Stores the current user's ID
         let isAuthReady = false; // Flag to ensure Firebase is initialized and authenticated
 
+        // Track if the document is in focus
+        let documentInFocus = true;
+        window.addEventListener('focus', () => { documentInFocus = true; });
+        window.addEventListener('blur', () => { documentInFocus = false; });
+
         // Initialize Firebase app
         try {
             app = initializeApp(firebaseConfig);
@@ -162,6 +167,7 @@
             isAuthReady = true; // Set flag to true once authentication is ready
             document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
             loadData(); // Load data only after authentication is complete
+            requestNotificationPermission(); // Request notification permission after auth
         });
 
         /**
@@ -191,8 +197,46 @@
         }
 
         /**
+         * Requests permission for system notifications.
+         */
+        function requestNotificationPermission() {
+            // Check if Notification API is supported by the browser
+            if (!("Notification" in window)) {
+                console.warn("This browser does not support desktop notification");
+                return;
+            }
+
+            // Check if permission is already granted or denied
+            if (Notification.permission === "granted") {
+                console.log("Notification permission already granted.");
+            } else if (Notification.permission !== "denied") {
+                // Request permission
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        console.log("Notification permission granted.");
+                        showMessage("Notification permission granted!", "success");
+                    } else {
+                        console.log("Notification permission denied.");
+                        showMessage("Notification permission denied.", "warning");
+                    }
+                });
+            }
+        }
+
+        /**
+         * Displays a system notification.
+         * @param {string} title - The title of the notification.
+         * @param {string} body - The body text of the notification.
+         */
+        function showSystemNotification(title, body) {
+            if (Notification.permission === "granted" && !documentInFocus) {
+                new Notification(title, { body: body, icon: 'https://placehold.co/48x48/4f46e5/ffffff?text=New' });
+            }
+        }
+
+        /**
          * Uploads data from the input field to Firestore.
-         * This function is called when the "Upload Data" button is clicked.
+         * This function is called when the "Upload Data" button is clicked or Enter is pressed.
          */
         window.uploadData = async function() {
             if (!isAuthReady) {
@@ -240,6 +284,16 @@
 
             // Set up a real-time listener with onSnapshot
             onSnapshot(q, (snapshot) => {
+                // Check for changes (new documents added)
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        // If a new document is added and the tab is not in focus, show a notification
+                        if (!documentInFocus && change.doc.data().userId !== userId) { // Don't notify for own uploads
+                            showSystemNotification("New Data Uploaded!", `"${change.doc.data().content}" by ${change.doc.data().userId}`);
+                        }
+                    }
+                });
+
                 dataList.innerHTML = ''; // Clear existing list items
                 if (snapshot.empty) {
                     dataList.innerHTML = '<li class="text-center text-gray-500 p-4">No data uploaded yet. Be the first!</li>';
@@ -296,26 +350,23 @@
                 await deleteDoc(doc(db, collectionPath, docId));
                 showMessage("Data deleted successfully!", "success");
             } catch (e) {
-                console.error("Error deleting document: ", e);
-                showMessage("Error deleting data. Please try again.", "error");
-            }
-        };
-
-        // Ensure loadData is called once the window is fully loaded and auth is ready
-        window.onload = function() {
-            // Any other initializations can go here if needed
-            // loadData() is already triggered by onAuthStateChanged
-
-            // Add event listener for the Enter key on the input field
-            const dataInput = document.getElementById('data-input');
-            dataInput.addEventListener('keypress', function(event) {
-                // Check if the pressed key is 'Enter' (key code 13)
-                if (event.key === 'Enter' || event.keyCode === 13) {
-                    event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
-                    uploadData(); // Call the uploadData function
+                    console.error("Error deleting document: ", e);
+                    showMessage("Error deleting data. Please try again.", "error");
                 }
-            });
-        };
+            };
+
+            // Ensure loadData is called once the window is fully loaded and auth is ready
+            window.onload = function() {
+                // Add event listener for the Enter key on the input field
+                const dataInput = document.getElementById('data-input');
+                dataInput.addEventListener('keypress', function(event) {
+                    // Check if the pressed key is 'Enter' (key code 13)
+                    if (event.key === 'Enter' || event.keyCode === 13) {
+                        event.preventDefault(); // Prevent the default action (e.g., form submission if it were in a form)
+                        uploadData(); // Call the uploadData function
+                    }
+                });
+            };
     </script>
 </body>
 </html>
