@@ -30,14 +30,14 @@
             flex-direction: column;
             gap: 20px;
         }
-        input[type="text"], input[type="file"] {
+        input[type="text"], input[type="file"], input[type="password"] {
             border: 2px solid #e0e0e0;
             border-radius: 10px;
             padding: 12px 15px;
             font-size: 16px;
             transition: border-color 0.3s ease;
         }
-        input[type="text"]:focus, input[type="file"]:focus {
+        input[type="text"]:focus, input[type="file"]:focus, input[type="password"]:focus {
             outline: none;
             border-color: #4f46e5; /* Indigo-600 */
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
@@ -108,15 +108,30 @@
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Real-time Data Sharing</h1>
 
         <!-- User ID and Name Display -->
-        <div class="bg-indigo-100 text-indigo-800 p-3 rounded-lg text-sm font-medium text-center shadow-inner">
+        <div class="bg-indigo-100 text-indigo-800 p-3 rounded-lg text-sm font-medium text-center shadow-inner mb-4">
             <p id="user-info-display">Authenticating...</p>
         </div>
 
-        <!-- Name Input Section -->
-        <div class="flex flex-col gap-4 mb-6">
+        <!-- Settings Button -->
+        <div class="text-right mb-4">
+            <button onclick="toggleSettings()" class="bg-gray-500 text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 px-4 py-2 text-sm">
+                Settings
+            </button>
+        </div>
+
+        <!-- Name Input Section (Initially visible if no name, or hidden behind settings) -->
+        <div id="name-input-section" class="flex flex-col gap-4 mb-6">
             <input type="text" id="name-input" placeholder="Enter your name..." class="flex-grow">
             <button onclick="saveName()" id="save-name-button" class="bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50">
                 Save Name
+            </button>
+        </div>
+
+        <!-- Pass Key Section for Name Change (Hidden by default) -->
+        <div id="passkey-section" class="flex flex-col gap-4 mb-6 hidden">
+            <input type="password" id="passkey-input" placeholder="Enter passkey to change name..." class="flex-grow">
+            <button onclick="enableNameChange()" id="change-name-button" class="bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                Enable Name Change
             </button>
         </div>
 
@@ -190,6 +205,9 @@
         let userName = localStorage.getItem('userName') || ''; // Load name from local storage
         let isAuthReady = false; // Flag to ensure Firebase is initialized and authenticated
 
+        // Hardcoded pass key for changing username
+        const PASS_KEY = "7860"; 
+
         // Track if the document is in focus
         let documentInFocus = true;
         window.addEventListener('focus', () => { documentInFocus = true; });
@@ -260,7 +278,48 @@
         };
 
         /**
+         * Toggles the visibility of the name change settings section.
+         */
+        window.toggleSettings = function() {
+            const passkeySection = document.getElementById('passkey-section');
+            const nameInputSection = document.getElementById('name-input-section');
+            
+            // Toggle visibility of the passkey section
+            passkeySection.classList.toggle('hidden');
+
+            // If a name is already set, hide the name input section when settings are toggled off
+            if (userName && passkeySection.classList.contains('hidden')) {
+                nameInputSection.classList.add('hidden');
+            } else if (!userName || !passkeySection.classList.contains('hidden')) {
+                // If no name is set, or settings are open, show the name input section
+                nameInputSection.classList.remove('hidden');
+            }
+            // Reset passkey input when toggling settings
+            document.getElementById('passkey-input').value = '';
+        };
+
+        /**
+         * Enables the name input field and save button if the correct pass key is entered.
+         */
+        window.enableNameChange = function() {
+            const passkeyInput = document.getElementById('passkey-input');
+            const enteredPasskey = passkeyInput.value;
+            const nameInput = document.getElementById('name-input');
+            const saveNameButton = document.getElementById('save-name-button');
+
+            if (enteredPasskey === PASS_KEY) {
+                nameInput.disabled = false;
+                saveNameButton.disabled = false;
+                passkeyInput.value = ''; // Clear passkey input
+                showMessage("Name change enabled. Enter new name and save.", "info");
+            } else {
+                showMessage("Incorrect passkey.", "error");
+            }
+        };
+
+        /**
          * Checks if a name is entered and enables/disables input fields and buttons accordingly.
+         * Also controls the visibility of the name input section based on userName and settings state.
          */
         function checkNameAndToggleInputs() {
             const dataInput = document.getElementById('data-input');
@@ -270,6 +329,11 @@
             const emojiButton = document.getElementById('emoji-button');
             const nameInput = document.getElementById('name-input');
             const saveNameButton = document.getElementById('save-name-button');
+            const passkeyInput = document.getElementById('passkey-input');
+            const changeNameButton = document.getElementById('change-name-button');
+            const nameInputSection = document.getElementById('name-input-section');
+            const passkeySection = document.getElementById('passkey-section');
+
 
             if (userName) {
                 dataInput.disabled = false;
@@ -280,6 +344,13 @@
                 nameInput.disabled = true; // Disable name input once name is set
                 saveNameButton.disabled = true; // Disable save name button
                 nameInput.value = userName; // Pre-fill name input with saved name
+                passkeyInput.disabled = false; // Enable passkey input
+                changeNameButton.disabled = false; // Enable change name button
+                
+                // Hide the name input section if a name is set and passkey section is hidden
+                if (passkeySection.classList.contains('hidden')) {
+                    nameInputSection.classList.add('hidden');
+                }
             } else {
                 dataInput.disabled = true;
                 fileInput.disabled = true;
@@ -288,6 +359,10 @@
                 emojiButton.disabled = true;
                 nameInput.disabled = false;
                 saveNameButton.disabled = false;
+                passkeyInput.disabled = true; // Disable passkey input until a name is set
+                changeNameButton.disabled = true; // Disable change name button
+                nameInputSection.classList.remove('hidden'); // Always show name input if no name is set
+                passkeySection.classList.add('hidden'); // Always hide passkey section if no name is set
             }
         }
 
@@ -351,7 +426,7 @@
          */
         function showSystemNotification(title, body) {
             if (Notification.permission === "granted" && !documentInFocus) {
-                new Notification(title, { body: body, icon: 'https://placehold.co/48x48/4f46e5/ffffff?text=New' });
+                new Notification(title, { body: body, icon: 'https://th.bing.com/th/id/OIP.3nvQ4Ja70GslDkql65kNjQHaHl?w=204&h=208&c=7&r=0&o=7&pid=1.7&rm=3' });
             }
         }
 
@@ -373,7 +448,7 @@
             const emojis = [
                 '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
                 '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
-                '😖', '😫', '😩', '�', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+                '😖', '😫', '😩', '🥺', '�', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
                 '🤔', '🤫', '🤭', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
                 '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '👽', '👾', '🤖'
             ];
