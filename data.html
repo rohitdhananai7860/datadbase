@@ -56,6 +56,12 @@
         button:active {
             transform: translateY(0);
         }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
         .message-box {
             transition: opacity 0.3s ease-in-out;
             z-index: 1000;
@@ -101,28 +107,36 @@
     <div class="container">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Real-time Data Sharing</h1>
 
-        <!-- User ID Display -->
+        <!-- User ID and Name Display -->
         <div class="bg-indigo-100 text-indigo-800 p-3 rounded-lg text-sm font-medium text-center shadow-inner">
-            <p id="user-id-display">Authenticating...</p>
+            <p id="user-info-display">Authenticating...</p>
+        </div>
+
+        <!-- Name Input Section -->
+        <div class="flex flex-col gap-4 mb-6">
+            <input type="text" id="name-input" placeholder="Enter your name..." class="flex-grow">
+            <button onclick="saveName()" id="save-name-button" class="bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50">
+                Save Name
+            </button>
         </div>
 
         <!-- Data Input Section -->
         <div class="flex flex-col gap-4 mb-6">
-            <input type="text" id="data-input" placeholder="Enter your text data here..." class="flex-grow">
+            <input type="text" id="data-input" placeholder="Enter your text data here..." class="flex-grow" disabled>
             
             <div class="flex flex-col sm:flex-row gap-4">
-                <button onclick="toggleEmojiPicker()" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex-grow">
+                <button onclick="toggleEmojiPicker()" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex-grow" disabled id="emoji-button">
                     Select Emoji
                 </button>
-                <input type="file" id="file-input" class="flex-grow p-2 rounded-lg border-2 border-gray-300">
-                <button onclick="uploadFile()" class="bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex-grow">
+                <input type="file" id="file-input" class="flex-grow p-2 rounded-lg border-2 border-gray-300" disabled>
+                <button onclick="uploadFile()" class="bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex-grow" disabled id="upload-file-button">
                     Upload File
                 </button>
             </div>
             
             <div id="emoji-picker" class="emoji-picker hidden"></div>
 
-            <button onclick="uploadData()" class="bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+            <button onclick="uploadData()" class="bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50" disabled id="upload-text-button">
                 Upload Text
             </button>
         </div>
@@ -173,6 +187,7 @@
         let auth;
         let storage; // Firebase Storage instance
         let userId; // Stores the current user's ID
+        let userName = localStorage.getItem('userName') || ''; // Load name from local storage
         let isAuthReady = false; // Flag to ensure Firebase is initialized and authenticated
 
         // Track if the document is in focus
@@ -208,10 +223,73 @@
                 }
             }
             isAuthReady = true; // Set flag to true once authentication is ready
-            document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
+            updateUserInfoDisplay(); // Update display with user ID and name
             loadData(); // Load data only after authentication is complete
             requestNotificationPermission(); // Request notification permission after auth
+            checkNameAndToggleInputs(); // Check name and enable/disable inputs
         });
+
+        /**
+         * Updates the user information display with User ID and Name.
+         */
+        function updateUserInfoDisplay() {
+            const userInfoDisplay = document.getElementById('user-info-display');
+            if (userName) {
+                userInfoDisplay.textContent = `User ID: ${userId} | Name: ${userName}`;
+            } else {
+                userInfoDisplay.textContent = `User ID: ${userId} | Please enter your name to start sharing.`;
+            }
+        }
+
+        /**
+         * Saves the user's name to local storage and updates UI.
+         */
+        window.saveName = function() {
+            const nameInput = document.getElementById('name-input');
+            const enteredName = nameInput.value.trim();
+
+            if (enteredName) {
+                userName = enteredName;
+                localStorage.setItem('userName', userName);
+                showMessage("Name saved successfully!", "success");
+                updateUserInfoDisplay();
+                checkNameAndToggleInputs();
+            } else {
+                showMessage("Please enter a valid name.", "warning");
+            }
+        };
+
+        /**
+         * Checks if a name is entered and enables/disables input fields and buttons accordingly.
+         */
+        function checkNameAndToggleInputs() {
+            const dataInput = document.getElementById('data-input');
+            const fileInput = document.getElementById('file-input');
+            const uploadTextButton = document.getElementById('upload-text-button');
+            const uploadFileButton = document.getElementById('upload-file-button');
+            const emojiButton = document.getElementById('emoji-button');
+            const nameInput = document.getElementById('name-input');
+            const saveNameButton = document.getElementById('save-name-button');
+
+            if (userName) {
+                dataInput.disabled = false;
+                fileInput.disabled = false;
+                uploadTextButton.disabled = false;
+                uploadFileButton.disabled = false;
+                emojiButton.disabled = false;
+                nameInput.disabled = true; // Disable name input once name is set
+                saveNameButton.disabled = true; // Disable save name button
+                nameInput.value = userName; // Pre-fill name input with saved name
+            } else {
+                dataInput.disabled = true;
+                fileInput.disabled = true;
+                uploadTextButton.disabled = true;
+                uploadFileButton.disabled = true;
+                emojiButton.disabled = true;
+                nameInput.disabled = false;
+                saveNameButton.disabled = false;
+            }
+        }
 
         /**
          * Displays a temporary message box notification.
@@ -294,8 +372,8 @@
         function populateEmojiPicker() {
             const emojis = [
                 '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
-                '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '�', '😕', '🙁', '☹️', '😣',
-                '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+                '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+                '😖', '😫', '😩', '�', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
                 '🤔', '🤫', '🤭', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
                 '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '👽', '👾', '🤖'
             ];
@@ -328,6 +406,10 @@
                 showMessage("Authentication not ready. Please wait.", "error");
                 return;
             }
+            if (!userName) {
+                showMessage("Please enter your name before uploading data.", "warning");
+                return;
+            }
             const dataInput = document.getElementById('data-input');
             const data = dataInput.value.trim();
 
@@ -339,7 +421,8 @@
                         type: 'text', // Indicate type of data
                         content: data,
                         timestamp: serverTimestamp(), // Use server timestamp for consistent ordering
-                        userId: userId // Store the ID of the user who uploaded the data
+                        userId: userId, // Store the ID of the user who uploaded the data
+                        userName: userName // Store the user's chosen name
                     });
                     dataInput.value = ''; // Clear the input field
                     showMessage("Text uploaded successfully!", "success");
@@ -358,6 +441,10 @@
         window.uploadFile = async function() {
             if (!isAuthReady) {
                 showMessage("Authentication not ready. Please wait.", "error");
+                return;
+            }
+            if (!userName) {
+                showMessage("Please enter your name before uploading files.", "warning");
                 return;
             }
             const fileInput = document.getElementById('file-input');
@@ -384,7 +471,8 @@
                         fileUrl: fileUrl,
                         filePath: filePath, // Store path for deletion
                         timestamp: serverTimestamp(),
-                        userId: userId
+                        userId: userId,
+                        userName: userName // Store the user's chosen name
                     });
 
                     fileInput.value = ''; // Clear the file input
@@ -422,10 +510,11 @@
                         // If a new document is added and the tab is not in focus, show a notification
                         if (!documentInFocus && change.doc.data().userId !== userId) { // Don't notify for own uploads
                             const itemData = change.doc.data();
+                            const uploaderName = itemData.userName || itemData.userId; // Use name if available, else ID
                             if (itemData.type === 'text') {
-                                showSystemNotification("New Text Uploaded!", `"${itemData.content}" by ${itemData.userId}`);
+                                showSystemNotification("New Text Uploaded!", `"${itemData.content}" by ${uploaderName}`);
                             } else if (itemData.type === 'file') {
-                                showSystemNotification("New File Uploaded!", `"${itemData.fileName}" by ${itemData.userId}`);
+                                showSystemNotification("New File Uploaded!", `"${itemData.fileName}" by ${uploaderName}`);
                             }
                         }
                     }
@@ -452,6 +541,7 @@
                     const li = document.createElement('li');
                     li.className = 'bg-white p-4 rounded-lg shadow-sm mb-2 flex flex-col sm:flex-row justify-between items-start sm:items-center';
                     const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
+                    const displayUploader = item.userName || item.userId; // Prefer userName, fallback to userId
 
                     let contentHtml = '';
                     if (item.type === 'text') {
@@ -486,7 +576,7 @@
                     li.innerHTML = `
                         <div class="flex-grow mb-2 sm:mb-0">
                             ${contentHtml}
-                            <p class="text-sm text-gray-500 mt-1">Uploaded by: <span class="font-mono text-xs">${item.userId}</span> at ${date}</p>
+                            <p class="text-sm text-gray-500 mt-1">Uploaded by: <span class="font-semibold">${displayUploader}</span> at ${date}</p>
                         </div>
                         <button onclick="deleteData('${item.id}', '${item.type === 'file' ? item.filePath : ''}')" class="ml-0 sm:ml-4 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 self-end sm:self-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -543,6 +633,11 @@
                     uploadData(); // Call the uploadData function
                 }
             });
+
+            // Set initial name input value from local storage
+            document.getElementById('name-input').value = userName;
+            updateUserInfoDisplay(); // Update display on load
+            checkNameAndToggleInputs(); // Set initial state of inputs/buttons
         };
     </script>
 </body>
